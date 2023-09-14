@@ -85,7 +85,7 @@ class ImageCollator:
 
         #print if desired
         if print_shapes:
-            self.tensor_printer(list_of_tensors, condition='resizing')
+            self.tensor_printer(resized_tensors, condition='resizing')
 
         return resized_tensors
 
@@ -98,7 +98,7 @@ class ImageCollator:
 
         #print if desired
         if print_shapes:
-            self.tensor_printer(list_of_tensors, condition='stacking')
+            self.tensor_printer(stacked_tensors, condition='stacking')
 
         return stacked_tensors
     
@@ -107,9 +107,16 @@ class ImageCollator:
         It takes a list of tensors and a string condition to inform at what 
         point in the code the shapes are being printed'''
 
-        # Print the shape of the images post max pooling
         print(f'\n\nShapes of images post {condition}: \n')
-        for i in range(len(tensor_list)):
-            print(tensor_list[i].shape, end = ' ')
-            if i % 5 == 0:
+
+        # Check if tensor_list is actually a single tensor (stacked tensors)
+        if isinstance(tensor_list, torch.Tensor):
+            print(tensor_list.shape)
+            return
+
+        # Else assume it's a list of tensors
+        for i, tensor in enumerate(tensor_list):
+            print(tensor.shape, end=' ')
+            if (i + 1) % 5 == 0:
                 print() # Print a new line every 5 images
+
