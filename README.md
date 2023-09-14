@@ -14,6 +14,5 @@ against each other.
 
 I plan to code up the model in pytorch and train it from scratch.  
 
-Currently I am building out a dimmensionality reduction and collation pipeline 
-for the image data. I want the pipeline to enable me to take photo of my signature 
-with a scanner app on my phone and feed it into the model without any manual preperation.
+Currently I have written the torch code for data collation, batch building, and
+the base model, which is a siamese network.
