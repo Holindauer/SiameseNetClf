@@ -18,12 +18,15 @@ class ImageCollator:
         pass
 
     def collate(self, list_of_images, num_poolings, print_shapes=False, resize_size=(50, 150)):
-        ''' This is the main method of this class. It revciieves a list of PIL images
-         and applies max pooling and resizing to them. It then returns a single tensor
+        ''' This is the main method of this class. It receives a list of PIL images
+         and applies max pooling, grayscale, and resizing to them. It then returns a single tensor
           containing all of the images. The number of times max pooling is applied is
            determined by the num_poolings parameter. The size to which the images are
             resized is determined by the resize_size parameter. The print_shapes parameter
              determines whether or not the shapes of the images are printed at each step '''
+        
+        # convert list of images to grayscale
+        list_of_images = self.PIL_to_grayscale(list_of_images, print_shapes)
 
         # convert list of images to list of tensors
         list_of_tensors = self.to_tensor(list_of_images, print_shapes)
@@ -36,6 +39,21 @@ class ImageCollator:
 
         # convert list of tensors to a single tensor and return
         return self.stack_tensors(resized_tensors, print_shapes)
+    
+    def PIL_to_grayscale(self, list_of_images, print_shapes=False):
+        '''This method converts a list of PIL images to grayscale'''
+
+        # instantiate transform
+        grayscale_transform = transforms.Grayscale()
+
+        # apply transform to each image and return
+        grayscale_list = [grayscale_transform(image) for image in list_of_images]
+
+        #print if desired
+        if print_shapes:
+            self.tensor_printer(grayscale_list, 'converting to grayscale')
+
+        return grayscale_list
 
 
     def to_tensor(self, list_of_images, print_shapes=False):
@@ -95,6 +113,8 @@ class ImageCollator:
 
         # stack tensors
         stacked_tensors =  torch.stack(list_of_tensors, dim=0)
+
+
 
         #print if desired
         if print_shapes:

@@ -12,7 +12,7 @@ files within a user inputted directory. In this project, I want to apply this
 same technique to image data. Specifically, to check the similarity of two signatures 
 against each other.
 
-I plan to code up the model in pytorch and train it from scratch.  
-
-Currently I have written the torch code for data collation, batch building, and
-the base model, which is a siamese network.
+I have written the torch code for data collation, batch building, and
+the base model, which is a siamese network. I have also just completed
+some data wrangling on the raw image data and am currently getting the 
+training files ready for the first model.
