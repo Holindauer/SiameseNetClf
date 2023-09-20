@@ -47,16 +47,8 @@ class Build_Batch:
                     # stack two different tensors into a pair and append to list
                     pair_list.append(torch.stack([tensor_stack[i], tensor_stack[j]]))
 
-        # stack the list of pairs
-        pair_stack = torch.stack(pair_list)
-
-        # add a new dimension to the stack for the label
-        pair_stack = pair_stack.unsqueeze(-1)
-
-        # Fill the new dimension with ones to represent that the pairs are the same
-        pair_stack[:, :, 0].fill_(1.0)
-
-        return pair_stack
+        # stack the list of pairs and return
+        return torch.stack(pair_list)
 
     
     def build_unlike_pairs(self, list_of_stacks):
@@ -87,15 +79,7 @@ class Build_Batch:
                         # stack two different tensors into a pair and append to list
                         pair_list.append(torch.stack([list_of_stacks[i][j], list_of_stacks[m][k]]))  
 
-        # stack the list of pairs
-        unlike_pairs_stack =  torch.stack(pair_list)
-
-        # add a new dimension to the stack for the label
-        unlike_pairs_stack = unlike_pairs_stack.unsqueeze(-1)
-
-        # Fill the new dimension with zeros to represent that the pairs are not the same
-        unlike_pairs_stack[:, :, 0].fill_(0.0)
-
-        return unlike_pairs_stack
+        # stack the list of pairs and return
+        return torch.stack(pair_list)
 
     

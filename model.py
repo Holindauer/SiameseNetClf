@@ -170,13 +170,15 @@ class BiEncoder(nn.Module):
         return dot_product / (mag_1 * mag_2)
 
 
-    def threshold(self, pred_threshold):
+    def threshold(self, pred):
         '''
             This method checks each value in a tensor and returns a 1 
             if the value is greater than the threshold, and a 0 if it 
             is less than the threshold. The threshold is a hyperparameter.
         '''
-        return (pred_threshold > self.threshold_value).float()
+        # apply the greater than or equal to operator to each value in the tensor
+        # this returns a boolena tensor to which we apply the float() function
+        return torch.ge(pred, self.threshold_value).float()
 
 
     def forward(self, x):
