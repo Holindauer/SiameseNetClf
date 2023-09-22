@@ -4,6 +4,7 @@ It runs a basic pytorch training loop, with the option to use early stopping.
 '''
 
 import torch
+import copy
 
 
 class Trainer:
@@ -20,6 +21,13 @@ class Trainer:
         self.log_freq = log_freq
 
     def train(self):
+        
+        #initialize loss and accuracy tracking for learning curves plot
+        historical_loss = []
+        historical_acc = []
+        
+        #send model to device
+        self.model.to(self.device)
 
         # initialize early stopping
         es_counter  = 0
@@ -59,7 +67,7 @@ class Trainer:
             with torch.no_grad():
                 # Iterate over the validation data and accumulate the accuracy and loss.
                 for data, target in self.val_loader:
-                    
+
                     # Load data to device
                     data, target = data.to(self.device), target.to(self.device)
 
@@ -70,17 +78,21 @@ class Trainer:
                     val_loss += self.criterion(output, target).item()
 
                     # Calculate accuracy
-                    pred = output.argmax(dim=1, keepdim=True)
+                    # Since output and target are both one-dimensional tensors of ones or zeros,
+                    # we can directly compare them.
+                    correct = (output == target).float().sum().item()
+                    val_accuracy += correct
 
-                    # Add correct predictions to running total
-                    val_accuracy += pred.eq(target.view_as(pred)).sum().item()
+                # Average accuracy and loss across the batches.
+                val_accuracy /= len(self.val_loader.dataset)
+                val_loss /= len(self.val_loader.dataset)
 
-            # Average accuracy and loss across the batches.
-            val_accuracy /= len(self.val_loader.dataset)
-            val_loss /= len(self.val_loader.dataset)
-
-            # Print metrics
-            print(f'Epoch: {epoch}, Validation Accuracy: {val_accuracy}, Validation Loss: {val_loss}')
+                # Print metrics
+                print(f'Epoch: {epoch}, Validation Accuracy: {val_accuracy}, Validation Loss: {val_loss}')
+                
+                #save loss and acc for plotting
+                historical_loss.append(val_loss)
+                historical_acc.append(val_accuracy)
 
 
 
@@ -91,13 +103,15 @@ class Trainer:
             else:
                 if val_accuracy > best_val_accuracy:
                     best_val_accuracy = val_accuracy
-                    best_model = self.model
+                    best_model = copy.deepcopy(self.model)
                     es_counter = 0
                 else:
                     es_counter += 1
 
             if es_counter >= self.early_stopping_patience:
                 print(f'Early stopping at epoch {epoch}')
-                return best_model
+                return best_model, historical_loss, historical_acc
+            
+        return best_model, historical_loss, historical_acc
             
             

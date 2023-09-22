@@ -26,7 +26,7 @@ class ImageCollator:
              determines whether or not the shapes of the images are printed at each step '''
         
         # convert list of images to grayscale
-        list_of_images = self.PIL_to_grayscale(list_of_images, print_shapes)
+        list_of_images = self.PIL_to_grayscale(list_of_images)
 
         # convert list of images to list of tensors
         list_of_tensors = self.to_tensor(list_of_images, print_shapes)
@@ -40,7 +40,7 @@ class ImageCollator:
         # convert list of tensors to a single tensor and return
         return self.stack_tensors(resized_tensors, print_shapes)
     
-    def PIL_to_grayscale(self, list_of_images, print_shapes=False):
+    def PIL_to_grayscale(self, list_of_images):
         '''This method converts a list of PIL images to grayscale'''
 
         # instantiate transform
@@ -48,10 +48,6 @@ class ImageCollator:
 
         # apply transform to each image and return
         grayscale_list = [grayscale_transform(image) for image in list_of_images]
-
-        #print if desired
-        if print_shapes:
-            self.tensor_printer(grayscale_list, 'converting to grayscale')
 
         return grayscale_list
 
