@@ -111,23 +111,26 @@ class BiEncoder(nn.Module):
             flattened and passed through a linear layer to reduce the size of the vector embedding.
         '''
 
-        # conv block 1 ________1 --> 8 channels
+        # conv block 1 ________1 --> 32 channels
         x = self.conv_layer_1(input_tensor)
         x = F.relu(x)
+        x = F.max_pool2d(x, kernel_size=2, stride=2)  # additional maxpooling layer from model_1.py
         x = self.conv_layer_2(x)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=2, stride=2)
         
-        # conv block 2 ________8 --> 16 channels
+        # conv block 2 ________32 --> 64 channels
         x = self.conv_layer_3(x)
         x = F.relu(x)
+        x = F.max_pool2d(x, kernel_size=2, stride=2)  # additional maxpooling layer form model_1.py
         x = self.conv_layer_4(x)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=2, stride=2)
 
-        # conv block 3 ________16 --> 32 channels
+        # conv block 3 ________64 --> 128 channels
         x = self.conv_layer_5(x)
         x = F.relu(x)
+        x = F.max_pool2d(x, kernel_size=2, stride=2)  # additional maxpooling layer from model_1.py
         x = self.conv_layer_6(x)
         x = F.relu(x)
         x = F.max_pool2d(x, kernel_size=2, stride=2)
