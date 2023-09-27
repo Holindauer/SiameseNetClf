@@ -1,1 +1,5 @@
+data used in model 1:
 https://www.kaggle.com/datasets/divyanshrai/handwritten-signatures
+
+found new, better version:
+https://www.kaggle.com/datasets/robinreni/signature-verification-dataset
