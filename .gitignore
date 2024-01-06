@@ -1,0 +1,5 @@
+# mypy conda pycache data directory
+__pycache__/
+data/
+.conda/
+.mypy_cache/

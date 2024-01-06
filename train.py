@@ -1,43 +1,49 @@
 import torch
 import copy
 import random
+from dataclasses import dataclass
+from typing import Any, List, Tuple
+
+# training config
+@dataclass
+class TrainConfig:
+    model: torch.nn
+    train_loader: torch.utils.data.DataLoader
+    test_loader: torch.utils.data.DataLoader
+    epochs: int
+    device: torch.device
+    criterion: torch.nn
+    optimizer: torch.optim
+    patience: int
 
 
 class Trainer:
-    def __init__(self, model, criterion, optimizer, train_loader, val_loader, epochs, device, patience):   
-        # model parameters
-        self.model = model
-        self.criterion = criterion
-        self.optimizer = optimizer
-        self.epochs = epochs
-        self.device = device
+    def __init__(self, config: TrainConfig):   
 
-        # data loaders
-        self.train_loader = train_loader
-        self.val_loader = val_loader         
-        
-        # logging parameters
-        self.historical_loss = []
-        self.historical_train_loss = []
+        # unpack config
+        self.model = config.model
+        self.train_loader = config.train_loader
+        self.val_loader = config.test_loader
+        self.epochs = config.epochs
+        self.device = config.device
+        self.criterion = config.criterion
+        self.optimizer = config.optimizer
+        self.patience = config.patience
 
-        # early stopping parameters
-        self.patience = patience
-        self.es_counter = 0
-        self.best_val_loss = 0
-        self.best_model = None
 
     def train(self):
     
         #send model to device
         self.model.to(self.device)
+        print(f"Model sent to {self.device}")
 
-        # ensure model is in train mode
-        self.model.train()
 
         for epoch in range(self.epochs):
+            
+            # set model to train mode
+            self.model.train() 
 
-            train_loss = 0                                              # initialize train loss sum
-
+     
             train_iterator = iter(self.train_loader)                    # reset train iterator
             
             train_iterator_list = list(train_iterator)                  # convert iterator to list to apply random.shuffle()
@@ -133,21 +139,3 @@ class Trainer:
         return val_loss
 
 
-    def early_stopping(self, epoch, val_loss):
-
-        #set intialize best loss and model for epoch 0
-        if epoch == 0:
-            self.best_val_loss = val_loss 
-            
-        else: #otherwise check if val loss has improved
-            
-            if val_loss < self.best_val_loss:                 # check if val loss has improved
-
-                self.best_val_loss = val_loss                 # update best val loss
-                self.best_model = copy.deepcopy(self.model)   # copy model state dict
-                self.es_counter = 0                           # reset early stopping counter
-                
-            else:
-                self.es_counter += 1                          #otherwise add 1 to counter
-
-    
