@@ -1,35 +1,52 @@
 import torch
+from torch import Tensor
+from torch.utils.data import DataLoader
 import copy
-import random
 from dataclasses import dataclass
-from typing import Any, List, Tuple
+from contrastive import ContrastiveLoss
+from early_stopping import EarlyStopping
+from typing import Tuple
 
 # training config
 @dataclass
 class TrainConfig:
     model: torch.nn
-    train_loader: torch.utils.data.DataLoader
-    test_loader: torch.utils.data.DataLoader
+    trainloader: DataLoader
+    testloader: DataLoader
     epochs: int
     device: torch.device
-    criterion: torch.nn
+    contrastive_margin: float
     optimizer: torch.optim
     patience: int
-
+    es_min_delta: float
+    
 
 class Trainer:
     def __init__(self, config: TrainConfig):   
 
         # unpack config
         self.model = config.model
-        self.train_loader = config.train_loader
-        self.val_loader = config.test_loader
+
+        self.trainloader = config.trainloader
+        assert self.trainloader.batch_size % 2 == 0, "Batch size must be even"
+
+        self.testloader = config.testloader
+        assert self.testloader.batch_size % 2 == 0, "Batch size must be even"
+
         self.epochs = config.epochs
         self.device = config.device
-        self.criterion = config.criterion
         self.optimizer = config.optimizer
         self.patience = config.patience
 
+        # define loss function
+        self.contrastive_loss = ContrastiveLoss(margin=2.0)  
+
+        # training/test loss
+        self.train_loss = [0 for i in range(self.epochs)]
+        self.test_loss = [0 for i in range(self.epochs)]
+
+        # setup early stopping
+        self.early_stopping = EarlyStopping(patience=self.patience, min_delta=0.0)
 
     def train(self):
     
@@ -37,105 +54,105 @@ class Trainer:
         self.model.to(self.device)
         print(f"Model sent to {self.device}")
 
-
         for epoch in range(self.epochs):
             
             # set model to train mode
             self.model.train() 
 
      
-            train_iterator = iter(self.train_loader)                    # reset train iterator
-            
-            train_iterator_list = list(train_iterator)                  # convert iterator to list to apply random.shuffle()
-            random.shuffle(train_iterator_list)                         # shuffle the list of batches
-        
-            train_iterator = iter(train_iterator_list)                  # convert shuffled iterator-list back to iterator
-            
-            half_of_num_batches = int(len(train_iterator_list) / 2)     # compute half of the num batches for the training loop
-            
-            for i in range(half_of_num_batches): #  <-------------------- Iterate through each 1/2 the batches of the 
-                                                 #   <------------------- trainloader since 2 batches pulled per inference
+            for (batch, label) in self.trainloader:
                 
-                # handle dataset containing non-even batch ----> Stop-Iteration Error
-                try:
-                    imgs_1, targets_1 = next(train_iterator)  # get next two batchs of the iterator
-                    imgs_2, targets_2 = next(train_iterator)
-                except:                                       # if there are is only one batch left, that means we are at 
-                    break                                     # the end of the iterator and can break out to the next epoch
+                # split batch in half
+                data1, data2, binary_labels = self.split_batch(batch, label)
 
-                
-                imgs_1, targets_1 = imgs_1.to(self.device), targets_1.to(self.device)   # Load images to GPU
-                imgs_2, targets_2 = imgs_2.to(self.device), targets_2.to(self.device)
-                
-                self.optimizer.zero_grad()                                              #  Clear gradients
+                # zero the parameter gradients
+                self.optimizer.zero_grad()
 
-                image_1_embedding, image_2_embedding = self.model(imgs_1, imgs_2)       # Forward pass  ---> 2 vector embeddings
-                
-                try:
-                    targets = (targets_1 == targets_2).float()                          # create binary target vector by comparing the labels of the two images
-                except:
-                    break                                                               # if there are is only one batch left, that means we are at 
-                                                                                        # the end of the iterator and can break out to the next epoch
+                # forward 
+                embedding1, embedding1 = self.model(data1, data2)
 
-                targets = targets.to(self.device)                                       # send target to device
+                # Compute the loss
+                loss = self.contrastive_loss(embedding1, embedding1, binary_labels)
 
-                loss = self.criterion(image_1_embedding, image_2_embedding, targets)    # compute loss 
-                train_loss += loss.item()                                               # add loss to running total 
+                # Zero the gradients before running the backward pass
+                self.optimizer.zero_grad()
 
-                loss.backward()                                                         # back prop
+                # Backward pass
+                loss.backward()
 
-                self.optimizer.step()                                                   # update weights
-                
-            train_loss /= half_of_num_batches                                           # Average loss sum across the batch
-            self.historical_train_loss.append(train_loss)                               # save loss for plotting
+                # Update weights
+                self.optimizer.step()
 
-            val_loss = self.validate()                                                  # compute validation loss
-           
-            print(f"Epoch {epoch}: Train Loss: {train_loss:.5f} -- Val Loss: {val_loss:.5f}")
-  
-            self.early_stopping(epoch, val_loss)                                        # check if early stopping criteria has been met
+                # update training loss
+                self.train_loss[epoch] += loss.item()
 
-            if self.es_counter >= self.patience:                        # break train loop if early stopping criteria has been met
+            #average training loss
+            self.train_loss[epoch] /= len(self.trainloader)
+
+            # evaluate model on test set
+            self.eval(epoch)
+
+            # check for early stopping
+            if self.early_stopping(self.test_loss[epoch], self.model):
                 break
-          
-        return self.best_model, self.historical_loss, self.historical_train_loss
 
-            
-    def validate(self):
-            
+            print(f"Epoch {epoch+1} training loss: {self.train_loss[epoch]} test loss: {self.test_loss[epoch]}")
+
+    def eval(self, epoch : int):
+
+        # set model to eval mode
         self.model.eval()
-        
+
         with torch.no_grad():
-             
-            val_iterator = iter(self.val_loader)      # reset val iterator
-            val_loss = 0                              # initialize val loss sum 
+            for (batch, label) in self.testloader:
+                    
+                # split batch in half   
+                data1, data2, binary_labels = self.split_batch(batch, label)
 
-            for i in range(len(val_iterator)):
+                # forward 
+                embedding1, embedding1 = self.model(data1, data2)
 
-                # get the next batch of images and targets from the validation set
-                imgs_1, targets_1 = next(val_iterator)
-                imgs_2, targets_2 = next(val_iterator)
+                # Compute the loss
+                loss = self.contrastive_loss(embedding1, embedding1, binary_labels)
 
-                # Load images to GPU
-                imgs_1, targets_1 = imgs_1.to(self.device), targets_1.to(self.device)
-                imgs_2, targets_2 = imgs_2.to(self.device), targets_2.to(self.device)
+                # Zero the gradients before running the backward pass
+                self.optimizer.zero_grad()
 
-                # Forward pass
-                img_1_embedding, img_2_embedding = self.model(imgs_1, imgs_2)
-                              
-                # Create target vector by comparing the labels of the two images
-                try:
-                    targets = (targets_1 == targets_2).float() 
-                except:
-                    break      # if batches are different shapes that means we are at the 
-                               # end of the iterator and can break out to the next epoch
+                # Backward pass
+                loss.backward()
+
+                # Update weights
+                self.optimizer.step()
+
+                # update test loss
+                self.test_loss[epoch] += loss.item()
+
+            #average test loss
+            self.test_loss[epoch] /= len(self.testloader)
+
+            
+    def split_batch(self, batch : Tensor, label : Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+        """
+        @notice This function splits a batch of data into two batches of equal size. The labels are also split into two batches
+        @dev This is because the siamese network takes two images as input
+        """
+
+        # send data to device
+        batch : Tensor = batch.to(self.device)
+        label = label.to(self.device)
+
+        # split data into two batches
+        split : int = batch.shape[0]//2
+        data1 : Tensor = batch[:split]
+        data2 : Tensor = batch[split:]
+
+        # split labels into two batches
+        label1 : Tensor = label[:split]
+        label2 : Tensor = label[split:]
+                    
+        # use boolean masking to determine like images
+        binary_labels : Tensor = (label1 == label2).float()
+
+        return data1, data2, binary_labels
+
                 
-                # Calculate loss and add to running total
-                val_loss += self.criterion(img_1_embedding, img_2_embedding, targets).item()
-                        
-            val_loss /= len(self.val_loader)          # Average loss sum across the batch     
-            self.historical_loss.append(val_loss)     # save loss for plotting
-                
-        return val_loss
-
-
