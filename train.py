@@ -1,9 +1,9 @@
 import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
+import torch.nn as nn
 import copy
 from dataclasses import dataclass
-from contrastive import ContrastiveLoss
 from early_stopping import EarlyStopping
 from typing import Tuple
 
@@ -39,7 +39,7 @@ class Trainer:
         self.patience = config.patience
 
         # define loss function
-        self.contrastive_loss = ContrastiveLoss(margin=2.0)  
+        self.contrastive_loss = nn.CosineEmbeddingLoss(margin=0.5, reduction='mean')
 
         # training/test loss
         self.train_loss = [0 for i in range(self.epochs)]
@@ -60,19 +60,19 @@ class Trainer:
             self.model.train() 
 
      
-            for (batch, label) in self.trainloader:
-                
-                # split batch in half
-                data1, data2, binary_labels = self.split_batch(batch, label)
+            for (imgs1, imgs2, labels) in self.trainloader:
+
+                #send data to device
+                imgs1, imgs2 = imgs1.to(self.device), imgs1.to(self.device)
 
                 # zero the parameter gradients
                 self.optimizer.zero_grad()
 
                 # forward 
-                embedding1, embedding1 = self.model(data1, data2)
+                embedding1, embedding1 = self.model(imgs1, imgs2)
 
                 # Compute the loss
-                loss = self.contrastive_loss(embedding1, embedding1, binary_labels)
+                loss = self.contrastive_loss(embedding1, embedding1, labels)
 
                 # Zero the gradients before running the backward pass
                 self.optimizer.zero_grad()
@@ -104,16 +104,16 @@ class Trainer:
         self.model.eval()
 
         with torch.no_grad():
-            for (batch, label) in self.testloader:
+            for (imgs1, imgs2, labels) in self.testloader:
                     
-                # split batch in half   
-                data1, data2, binary_labels = self.split_batch(batch, label)
+                # send data to device
+                imgs1, imgs2 = imgs1.to(self.device), imgs2.to(self.device)
 
                 # forward 
-                embedding1, embedding1 = self.model(data1, data2)
+                embedding1, embedding1 = self.model(imgs1, imgs2)
 
                 # Compute the loss
-                loss = self.contrastive_loss(embedding1, embedding1, binary_labels)
+                loss = self.contrastive_loss(embedding1, embedding1, labels)
 
                 # Zero the gradients before running the backward pass
                 self.optimizer.zero_grad()
@@ -131,28 +131,6 @@ class Trainer:
             self.test_loss[epoch] /= len(self.testloader)
 
             
-    def split_batch(self, batch : Tensor, label : Tensor) -> Tuple[Tensor, Tensor, Tensor]:
-        """
-        @notice This function splits a batch of data into two batches of equal size. The labels are also split into two batches
-        @dev This is because the siamese network takes two images as input
-        """
 
-        # send data to device
-        batch : Tensor = batch.to(self.device)
-        label = label.to(self.device)
-
-        # split data into two batches
-        split : int = batch.shape[0]//2
-        data1 : Tensor = batch[:split]
-        data2 : Tensor = batch[split:]
-
-        # split labels into two batches
-        label1 : Tensor = label[:split]
-        label2 : Tensor = label[split:]
-                    
-        # use boolean masking to determine like images
-        binary_labels : Tensor = (label1 == label2).float()
-
-        return data1, data2, binary_labels
 
                 

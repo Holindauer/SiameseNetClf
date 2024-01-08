@@ -121,7 +121,11 @@ class SiameseNet(nn.Module):
 
         # pass through linear layer to get vector embeddings
         img_1 = self.linear(img_1)    
-        img_2 = self.linear(img_2)     
+        img_2 = self.linear(img_2)   
+
+        # L2 Normalization
+        img_1 = F.normalize(img_1, p=2, dim=1)  # Normalize along the feature dimension
+        img_2 = F.normalize(img_2, p=2, dim=1)  
         
 
         return img_1, img_2
